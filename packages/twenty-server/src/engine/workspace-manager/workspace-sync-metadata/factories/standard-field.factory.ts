@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 
 import { FieldMetadataType } from 'twenty-shared';
 
-import { FeatureFlagMap } from 'src/engine/core-modules/feature-flag/interfaces/feature-flag-map.interface';
 import { WorkspaceDynamicRelationMetadataArgs } from 'src/engine/twenty-orm/interfaces/workspace-dynamic-relation-metadata-args.interface';
 import { WorkspaceEntityMetadataArgs } from 'src/engine/twenty-orm/interfaces/workspace-entity-metadata-args.interface';
 import { WorkspaceFieldMetadataArgs } from 'src/engine/twenty-orm/interfaces/workspace-field-metadata-args.interface';
@@ -14,7 +13,6 @@ import {
 import { WorkspaceSyncContext } from 'src/engine/workspace-manager/workspace-sync-metadata/interfaces/workspace-sync-context.interface';
 
 import { FeatureFlagKey } from 'src/engine/core-modules/feature-flag/enums/feature-flag-key.enum';
-import { FeatureFlagService } from 'src/engine/core-modules/feature-flag/services/feature-flag.service';
 import { RelationMetadataType } from 'src/engine/metadata-modules/relation-metadata/relation-metadata.entity';
 import { BaseWorkspaceEntity } from 'src/engine/twenty-orm/base.workspace-entity';
 import { metadataArgsStorage } from 'src/engine/twenty-orm/storage/metadata-args.storage';
@@ -24,18 +22,14 @@ import { isGatedAndNotEnabled } from 'src/engine/workspace-manager/workspace-syn
 
 @Injectable()
 export class StandardFieldFactory {
-  constructor(private readonly featureFlagService: FeatureFlagService) {}
-
   create(
     target: typeof BaseWorkspaceEntity,
     context: WorkspaceSyncContext,
-    workspaceFeatureFlagsMap: FeatureFlagMap,
   ): (PartialFieldMetadata | PartialComputedFieldMetadata)[];
 
   create(
     targets: (typeof BaseWorkspaceEntity)[],
     context: WorkspaceSyncContext,
-    workspaceFeatureFlagsMap: FeatureFlagMap, // Map of standardId to field metadata
   ): Map<string, (PartialFieldMetadata | PartialComputedFieldMetadata)[]>;
 
   create(
@@ -43,7 +37,6 @@ export class StandardFieldFactory {
       | typeof BaseWorkspaceEntity
       | (typeof BaseWorkspaceEntity)[],
     context: WorkspaceSyncContext,
-    workspaceFeatureFlagsMap: FeatureFlagMap,
   ):
     | (PartialFieldMetadata | PartialComputedFieldMetadata)[]
     | Map<string, (PartialFieldMetadata | PartialComputedFieldMetadata)[]> {
@@ -59,7 +52,7 @@ export class StandardFieldFactory {
         if (
           isGatedAndNotEnabled(
             workspaceEntityMetadataArgs.gate,
-            workspaceFeatureFlagsMap,
+            context.featureFlags,
           )
         ) {
           return acc;
@@ -67,7 +60,7 @@ export class StandardFieldFactory {
 
         acc.set(
           workspaceEntityMetadataArgs.standardId,
-          this.create(target, context, workspaceFeatureFlagsMap),
+          this.create(target, context),
         );
 
         return acc;
@@ -83,21 +76,18 @@ export class StandardFieldFactory {
         workspaceEntityMetadataArgs,
         metadataCollections.fields,
         context,
-        workspaceFeatureFlagsMap,
         this.createFieldMetadata,
       ),
       ...this.processMetadata(
         workspaceEntityMetadataArgs,
         metadataCollections.relations,
         context,
-        workspaceFeatureFlagsMap,
         this.createFieldRelationMetadata,
       ),
       ...this.processMetadata(
         workspaceEntityMetadataArgs,
         metadataCollections.dynamicRelations,
         context,
-        workspaceFeatureFlagsMap,
         this.createComputedFieldRelationMetadata,
       ),
     ];
@@ -118,22 +108,15 @@ export class StandardFieldFactory {
     workspaceEntityMetadataArgs: WorkspaceEntityMetadataArgs | undefined,
     metadataArgs: T[],
     context: WorkspaceSyncContext,
-    featureFlagsMap: FeatureFlagMap,
     createMetadata: (
       workspaceEntityMetadataArgs: WorkspaceEntityMetadataArgs | undefined,
       args: T,
       context: WorkspaceSyncContext,
-      featureFlagsMap: FeatureFlagMap,
     ) => U[],
   ): U[] {
     return metadataArgs
       .flatMap((args) =>
-        createMetadata(
-          workspaceEntityMetadataArgs,
-          args,
-          context,
-          featureFlagsMap,
-        ),
+        createMetadata(workspaceEntityMetadataArgs, args, context),
       )
       .filter(Boolean) as U[];
   }
@@ -145,12 +128,11 @@ export class StandardFieldFactory {
     workspaceEntityMetadataArgs: WorkspaceEntityMetadataArgs | undefined,
     workspaceFieldMetadataArgs: WorkspaceFieldMetadataArgs,
     context: WorkspaceSyncContext,
-    workspaceFeatureFlagsMap: FeatureFlagMap,
   ): PartialFieldMetadata[] {
     if (
       isGatedAndNotEnabled(
         workspaceFieldMetadataArgs.gate,
-        workspaceFeatureFlagsMap,
+        context.featureFlags,
       )
     ) {
       return [];
@@ -186,7 +168,6 @@ export class StandardFieldFactory {
     workspaceEntityMetadataArgs: WorkspaceEntityMetadataArgs | undefined,
     workspaceRelationMetadataArgs: WorkspaceRelationMetadataArgs,
     context: WorkspaceSyncContext,
-    workspaceFeatureFlagsMap: FeatureFlagMap,
   ): PartialFieldMetadata[] {
     const isNewRelationEnabled =
       context.featureFlags[FeatureFlagKey.IsNewRelationEnabled];
@@ -207,7 +188,7 @@ export class StandardFieldFactory {
     if (
       isGatedAndNotEnabled(
         workspaceRelationMetadataArgs.gate,
-        workspaceFeatureFlagsMap,
+        context.featureFlags,
       )
     ) {
       return [];
@@ -267,13 +248,12 @@ export class StandardFieldFactory {
       | WorkspaceDynamicRelationMetadataArgs
       | undefined,
     context: WorkspaceSyncContext,
-    workspaceFeatureFlagsMap: FeatureFlagMap,
   ): PartialComputedFieldMetadata[] {
     if (
       !workspaceDynamicRelationMetadataArgs ||
       isGatedAndNotEnabled(
         workspaceDynamicRelationMetadataArgs.gate,
-        workspaceFeatureFlagsMap,
+        context.featureFlags,
       )
     ) {
       return [];
