@@ -19,7 +19,7 @@ import {
   RelationDirection,
   deduceRelationDirection,
 } from 'src/engine/utils/deduce-relation-direction.util';
-import { isFieldMetadataOfType } from 'src/engine/utils/is-field-metadata-of-type.util';
+import { isFieldMetadataEntityOfType } from 'src/engine/utils/is-field-metadata-of-type.util';
 
 @Command({
   name: 'upgrade-0.43:migrate-relations-to-field-metadata',
@@ -88,13 +88,16 @@ export class MigrateRelationsToFieldMetadataCommand extends ActiveWorkspacesComm
 
       const joinColumnFieldMetadataCollection = fieldMetadataCollection.filter(
         (fieldMetadata) =>
-          isFieldMetadataOfType(fieldMetadata, FieldMetadataType.UUID),
+          isFieldMetadataEntityOfType(fieldMetadata, FieldMetadataType.UUID),
         // TODO: Fix this, it's working in other places but not here
       ) as FieldMetadataEntity<FieldMetadataType.UUID>[];
 
       const fieldMetadataToUpdateCollection = fieldMetadataCollection
         .filter((fieldMetadata) =>
-          isFieldMetadataOfType(fieldMetadata, FieldMetadataType.RELATION),
+          isFieldMetadataEntityOfType(
+            fieldMetadata,
+            FieldMetadataType.RELATION,
+          ),
         )
         .map((fieldMetadata) =>
           this.updateRelationFieldMetadata(

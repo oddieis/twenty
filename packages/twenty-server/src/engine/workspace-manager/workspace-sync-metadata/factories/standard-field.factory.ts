@@ -13,6 +13,8 @@ import {
 } from 'src/engine/workspace-manager/workspace-sync-metadata/interfaces/partial-field-metadata.interface';
 import { WorkspaceSyncContext } from 'src/engine/workspace-manager/workspace-sync-metadata/interfaces/workspace-sync-context.interface';
 
+import { FeatureFlagKey } from 'src/engine/core-modules/feature-flag/enums/feature-flag-key.enum';
+import { FeatureFlagService } from 'src/engine/core-modules/feature-flag/services/feature-flag.service';
 import { RelationMetadataType } from 'src/engine/metadata-modules/relation-metadata/relation-metadata.entity';
 import { BaseWorkspaceEntity } from 'src/engine/twenty-orm/base.workspace-entity';
 import { metadataArgsStorage } from 'src/engine/twenty-orm/storage/metadata-args.storage';
@@ -22,6 +24,8 @@ import { isGatedAndNotEnabled } from 'src/engine/workspace-manager/workspace-syn
 
 @Injectable()
 export class StandardFieldFactory {
+  constructor(private readonly featureFlagService: FeatureFlagService) {}
+
   create(
     target: typeof BaseWorkspaceEntity,
     context: WorkspaceSyncContext,
@@ -184,6 +188,9 @@ export class StandardFieldFactory {
     context: WorkspaceSyncContext,
     workspaceFeatureFlagsMap: FeatureFlagMap,
   ): PartialFieldMetadata[] {
+    const isNewRelationEnabled =
+      context.featureFlags[FeatureFlagKey.IsNewRelationEnabled];
+
     const fieldMetadataCollection: PartialFieldMetadata[] = [];
     const foreignKeyStandardId = createDeterministicUuid(
       workspaceRelationMetadataArgs.standardId,
@@ -206,7 +213,8 @@ export class StandardFieldFactory {
       return [];
     }
 
-    if (joinColumn) {
+    // We don't want to create the join column field metadata for new relation
+    if (!isNewRelationEnabled && joinColumn) {
       fieldMetadataCollection.push({
         type: FieldMetadataType.UUID,
         standardId: foreignKeyStandardId,
